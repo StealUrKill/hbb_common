@@ -8,6 +8,7 @@ use std::net::SocketAddr;
 use tokio::net::{lookup_host, ToSocketAddrs, UdpSocket};
 use tokio_socks::{udp::Socks5UdpFramed, IntoTargetAddr, TargetAddr, ToProxyAddrs};
 use tokio_util::{codec::BytesCodec, udp::UdpFramed};
+use std::fmt::Debug;
 
 pub enum FramedSocket {
     Direct(UdpFramed<BytesCodec>),
@@ -41,7 +42,16 @@ fn new_socket(addr: SocketAddr, reuse: bool, buf_size: usize) -> Result<Socket, 
     if addr.is_ipv6() && addr.ip().is_unspecified() && addr.port() > 0 {
         socket.set_only_v6(false).ok();
     }
-    socket.bind(&addr.into())?;
+    match socket.bind(&addr.into()) {
+        Ok(_) => {
+            log::info!("UDP socket bound to {}", addr);
+        }
+        Err(e) => {
+            log::error!("Failed to bind UDP socket to {}: {}", addr, e);
+            return Err(e);
+        }
+    }
+
     Ok(socket)
 }
 
@@ -51,19 +61,43 @@ impl FramedSocket {
     }
 
     pub async fn new_reuse<T: ToSocketAddrs>(
-        addr: T,
-        reuse: bool,
-        buf_size: usize,
-    ) -> ResultType<Self> {
-        let addr = lookup_host(&addr)
-            .await?
-            .next()
-            .context("could not resolve to any address")?;
-        Ok(Self::Direct(UdpFramed::new(
-            UdpSocket::from_std(new_socket(addr, reuse, buf_size)?.into_udp_socket())?,
-            BytesCodec::new(),
-        )))
-    }
+		addr: T,
+		reuse: bool,
+		buf_size: usize,
+	) -> ResultType<Self> {
+		let resolved = match lookup_host(&addr).await?.next() {
+			Some(a) => a,
+			None => {
+				let addr_log = match lookup_host(&addr).await {
+					Ok(mut iter) => iter.next().map(|a| a.to_string()).unwrap_or_else(|| "<empty iterator>".to_string()),
+					Err(_) => "<failed to resolve>".to_string(),
+				};
+			
+				log::info!("UDP attempting bind to: {}", addr_log);
+			
+				return Err(anyhow!("Could not resolve any address"));
+			}
+			
+		};
+	
+		log::debug!("Resolved UDP bind address: {}", resolved);
+	
+		let std_socket = match new_socket(resolved, reuse, buf_size) {
+			Ok(sock) => sock,
+			Err(e) => {
+				log::error!("Failed to create new UDP socket: {}", e);
+				return Err(e.into());
+			}
+		};
+	
+		let std_udp = std_socket.into_udp_socket(); // ✅ Extract std socket
+		let udp_socket = UdpSocket::from_std(std_udp)?; // ✅ Use from_std and apply `?`
+		log::info!("UDP socket created on {}", udp_socket.local_addr()?); // ✅ This now works
+	
+		Ok(Self::Direct(UdpFramed::new(udp_socket, BytesCodec::new())))
+	}
+	
+	
 
     pub async fn new_proxy<'a, 't, P: ToProxyAddrs, T: ToSocketAddrs>(
         proxy: P,

@@ -81,34 +81,53 @@ pub(crate) fn new_socket(addr: std::net::SocketAddr, reuse: bool) -> Result<TcpS
 }
 
 impl FramedStream {
-    pub async fn new<T: ToSocketAddrs + std::fmt::Display>(
-        remote_addr: T,
-        local_addr: Option<SocketAddr>,
-        ms_timeout: u64,
-    ) -> ResultType<Self> {
-        for remote_addr in lookup_host(&remote_addr).await? {
-            let local = if let Some(addr) = local_addr {
-                addr
-            } else {
-                crate::config::Config::get_any_listen_addr(remote_addr.is_ipv4())
-            };
-            if let Ok(socket) = new_socket(local, true) {
-                if let Ok(Ok(stream)) =
-                    super::timeout(ms_timeout, socket.connect(remote_addr)).await
-                {
-                    stream.set_nodelay(true).ok();
-                    let addr = stream.local_addr()?;
-                    return Ok(Self(
-                        Framed::new(DynTcpStream(Box::new(stream)), BytesCodec::new()),
-                        addr,
-                        None,
-                        0,
-                    ));
-                }
-            }
-        }
-        bail!(format!("Failed to connect to {remote_addr}"));
-    }
+		pub async fn new<T: ToSocketAddrs + std::fmt::Display>(
+		remote_addr: T,
+		local_addr: Option<SocketAddr>,
+		ms_timeout: u64,
+	) -> ResultType<Self> {
+		for remote_addr in lookup_host(&remote_addr).await? {
+			let local = if let Some(addr) = local_addr {
+				addr
+			} else {
+				crate::config::Config::get_any_listen_addr(remote_addr.is_ipv4())
+			};
+	
+			match new_socket(local, true) {
+				Ok(socket) => {
+					match super::timeout(ms_timeout, socket.connect(remote_addr)).await {
+						Ok(Ok(stream)) => {
+							stream.set_nodelay(true).ok();
+							let addr = stream.local_addr()?;
+							return Ok(Self(
+								Framed::new(DynTcpStream(Box::new(stream)), BytesCodec::new()),
+								addr,
+								None,
+								0,
+							));
+						}
+						Ok(Err(e)) => {
+							log::error!(
+								"TCP connect() failed to {remote_addr} from {local}: {}",
+								e
+							);
+						}
+						Err(e) => {
+							log::error!(
+								"TCP connect() timed out to {remote_addr} from {local}: {}",
+								e
+							);
+						}
+					}
+				}
+				Err(e) => {
+					log::error!("Failed to create socket for {local} to {remote_addr}: {}", e);
+				}
+			}
+		}
+	
+		bail!(format!("Failed to connect to {remote_addr}"));
+	}
 
     pub async fn connect<'t, T>(
         target: T,
