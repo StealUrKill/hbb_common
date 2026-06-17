@@ -2969,6 +2969,10 @@ pub mod keys {
     pub const OPTION_SHOW_VIRTUAL_JOYSTICK: &str = "show-virtual-joystick";
     pub const OPTION_ENABLE_FLUTTER_HTTP_ON_RUST: &str = "enable-flutter-http-on-rust";
     pub const OPTION_ALLOW_ASK_FOR_NOTE: &str = "allow-ask-for-note";
+    pub const OPTION_ALLOW_MONITOR_SWITCH_MAIN_TOOLBAR: &str =
+        "allow-monitor-switch-main-toolbar";
+    pub const OPTION_ALLOW_MONITOR_SWITCH_MIN_TOOLBAR: &str =
+        "allow-monitor-switch-min-toolbar";
 
     // built-in options
     pub const OPTION_DISPLAY_NAME: &str = "display-name";
@@ -3125,6 +3129,8 @@ pub mod keys {
         OPTION_SHOW_VIRTUAL_JOYSTICK,
         OPTION_ENABLE_FLUTTER_HTTP_ON_RUST,
         OPTION_ALLOW_ASK_FOR_NOTE,
+        OPTION_ALLOW_MONITOR_SWITCH_MAIN_TOOLBAR,
+        OPTION_ALLOW_MONITOR_SWITCH_MIN_TOOLBAR,
     ];
     // DEFAULT_SETTINGS, OVERWRITE_SETTINGS
     pub const KEYS_SETTINGS: &[&str] = &[
