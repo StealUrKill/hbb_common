@@ -104,6 +104,7 @@ message ChatMessage { string text = 1; }
 message Features {
   bool privacy_mode = 1;
   bool terminal = 2;
+  bool single_window_capture = 3;
 }
 
 message CodecAbility {
@@ -621,6 +622,19 @@ message ToggleVirtualDisplay {
   bool on = 2;
 }
 
+message WindowAtPoint {
+  sint32 x = 1;
+  sint32 y = 2;
+}
+
+message SelectScreenContent {
+  oneof union {
+    bool whole_desktop = 1;
+    WindowAtPoint window_at_point = 2;
+  }
+  int32 display = 3;
+}
+
 message TogglePrivacyMode {
   string impl_key = 1;
   bool on = 2;
@@ -859,6 +873,7 @@ message Misc {
     DisplayResolution change_display_resolution = 36;
     MessageQuery message_query = 37;
     int32 follow_current_display = 38;
+    SelectScreenContent select_screen_content = 39;
   }
 }
 
